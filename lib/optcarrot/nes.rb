@@ -80,14 +80,28 @@ module Optcarrot
         StackProf.start(mode: @conf.stackprof_mode.to_sym, out: out, raw: true)
       end
 
+      @frame = -120
       step until @frame == @frame_target
 
-      if @conf.stackprof_mode
-        StackProf.stop
-        StackProf.results
-      end
+      @frame = 0
+      @video.instance_variable_get(:@times).clear
+      RubyVM::MJIT.pause(wait: false) if RubyVM::MJIT.enabled?
+      pid = Process.spawn(
+        '/home/k0kubun/intel/vtune_profiler/bin64/vtune', '-collect',
+
+        #'hotspots', '-run-pass-thru=--no-altstack',
+        'hotspots', '-knob', 'sampling-mode=hw',
+        #'uarch-exploration',
+        #'memory-access',
+
+        "-user-data-dir=/home/k0kubun/intel/vtune/projects/optcarrot-#{RubyVM::MJIT.enabled? ? 'jit' : 'vm'}",
+        "-target-pid=#{Process.pid}",
+      )
+      step until @frame == @frame_target
+      puts "fps: #{ @fps }"
+      exit 0
     ensure
-      dispose
+      # dispose
     end
   end
 end
